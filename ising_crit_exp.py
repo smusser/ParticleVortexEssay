@@ -1,17 +1,39 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-'''
-# specify parameters
-side_length = 2**3
-equilibration_time = 2**13
-calculation_time = 2**10
-T_range = np.linspace(1.4, 3.14, 100)
-'''
+### FUNCTIONS ##########################################################
 
-def lattice_moves(lattice, K):
+def print_progress(iteration, total, prefix='', suffix='', decimals=1, bar_length=50):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        bar_length  - Optional  : character length of bar (Int)
+    """
+    str_format = "{0:." + str(decimals) + "f}"
+    percents = str_format.format(100 * (iteration / float(total)))
+    filled_length = int(round(bar_length * iteration / float(total)))
+    bar = '█' * filled_length + '-' * (bar_length - filled_length)
+
+    sys.stdout.write('\r%s |%s| %s%s %s' % (prefix, bar, percents, '%', suffix)),
+
+    if iteration == total:
+        sys.stdout.write('\n')
+    sys.stdout.flush()
+
+
+
+# this function implements the Metropolis moves on our lattice
+def lattice_moves(lattice, K, side_length):
 	for i in range(side_length):
 		for j in range(side_length):
 
@@ -43,8 +65,9 @@ def lattice_moves(lattice, K):
 
 
 
-
-def lattice_energy(lattice, K):
+# this function computes the 'energy' of the lattice (really beta*energy)
+# note that K is defined as beta*J 
+def lattice_energy(lattice, K, side_length):
 
 	neighbor_grid = np.roll(lattice, 1, axis=0) + np.roll(lattice, side_length-1, axis=0) + np.roll(lattice, 1, axis=1) + np.roll(lattice, side_length-1, axis=1)
 
@@ -54,114 +77,97 @@ def lattice_energy(lattice, K):
 
 
 
+# this function computes the magnetization of the lattice
+def lattice_magnetization(lattice):
 
-side_length = 2**8
-T = 1.4
-
-lattice = 2*np.random.randint(2, size=(side_length, side_length))-1
-
-for m in range(2**10+1):
-
-	lattice = lattice_moves(lattice, 1/T)
-
-	if m % 2**8 == 0:
-
-		fig, ax = plt.subplots(1,1)
-		plt.rc('text', usetex=True)
-		plt.rc('font', family='serif')
-
-		ax.set_title('Ising Model, $T=$ '+str(T)+', step number $=$ '+str(m))
-
-		im = ax.imshow(lattice, vmin=-1.0, vmax=1.0, interpolation='none', cmap=plt.cm.seismic, origin='lower')
-		divider = make_axes_locatable(ax)
-		cax = divider.append_axes('right', size='2%', pad=0.05)
-		cbar = plt.colorbar(im, cax=cax, ticks=[-1, 1])
-		cbar.set_label('Spin at site', labelpad=-10)
-
-		plt.tight_layout()
-		#plt.subplots_adjust(bottom=0.0, top=1.0, wspace=0.75)
-
-		plt.savefig('Ising_sim_'+str(T)+'_'+str(m)+'.png', dpi=400)
-
-		if m == 0:
-
-			fig, ax = plt.subplots(1,1)
-			plt.rc('text', usetex=True)
-			plt.rc('font', family='serif')
-
-			ax.set_title('Ising Model, $T=$ '+str(T)+', step number $=$ '+str(m))
-
-			im = ax.imshow(lattice, vmin=-1.0, vmax=1.0, interpolation='none', cmap=plt.cm.seismic, origin='lower')
-			divider = make_axes_locatable(ax)
-			cax = divider.append_axes('right', size='2%', pad=0.05)
-			cbar = plt.colorbar(im, cax=cax, ticks=[-1, 1])
-			cbar.set_label('Spin at site', labelpad=-10)
-
-			plt.tight_layout()
-			#plt.subplots_adjust(bottom=0.0, top=1.0, wspace=0.75)
-
-			plt.savefig('Ising_sim_'+str(T)+'_'+str(m)+'.png', dpi=400)
+	return np.sum(lattice)
 
 
 
-'''
-SpecificHeat = []
-SpecificHeatErr = []
+#### COMPUTATION ##########################################################
 
-count = 0
+# specify parameters
+side_length = 2**3  # size of lattice where we compute critical exponents
+number_temperature = 2**7  # number of temperature points to test
+equilibration_time = 2**9  # equilibration time (MAKE TEMP DEPENDENT)
+calculation_time = 2**10  # number of times we sample representative state
+
+
+# distribute temperature points around critical point
+# points near critical point more important, so normally distributed
+T_range = np.random.normal(2.27, 0.5, number_temperature)
+T_range = T_range[(T_range>1.07) & (T_range<3.47)]
+number_temperature = np.size(T_range)
+
+
+# initialize arrays for quantities we wish to measure
+SpecificHeat = np.zeros(number_temperature)
+Magnetization = np.zeros(number_temperature)
+
+
+count = 0 # define a count so we can show a progress bar
+print_progress(count, number_temperature) # progress bar
+
+
 for T in T_range:
 
-	K_temp = 1/T
 
-	# initialization step
+	# initialization step for our lattice at the given temperature
 	lattice = 2*np.random.randint(2, size=(side_length, side_length))-1
 
-	F_pts = []
-	F_pts_sq = []
 
-	for m in range(equilibration_time):
+	# now we will equilibrate the lattice
+	# we deal with critical slowing down by increasing equilibration time
+	# as we approach the critical point
+	real_eq_time = int(equilibration_time**(2.0-abs(T-2.27)))
+	for m in range(real_eq_time):
 
-		lattice = lattice_moves(lattice, K_temp)
+		lattice = lattice_moves(lattice, 1/T, side_length)
 
+
+
+	# having equilibrated the lattice, we now move on to finding
+	# expectation values
+	# initialize the arrays we will be measuring
+	F_vals = np.zeros(calculation_time)
+	M_vals = np.zeros(calculation_time)
+
+	# now we calculate expectation values
+	# advancing lattice corresponds to finding another representative state
 	for m in range(calculation_time):
 
-		lattice = lattice_moves(lattice, K_temp)
+		lattice = lattice_moves(lattice, 1/T, side_length)
 
-		F = lattice_energy(lattice, K_temp)
-		F_pts.append(F)
-		F_pts_sq.append(F**2)
+		# measure quantities
+		F = lattice_energy(lattice, 1/T, side_length)
+		M = lattice_magnetization(lattice)
 
-	F_pts = np.array(F_pts)
-	F_pts_sq = np.array(F_pts_sq)
-
-	SpecificHeat.append(np.mean(F_pts_sq) - np.mean(F_pts)*np.mean(F_pts))
-
-	sigma_sq = np.std(F_pts_sq)/np.sqrt(len(F_pts_sq))
-	sigma = np.std(F_pts)/np.sqrt(len(F_pts))
-
-	SpecificHeatErr.append(sigma_sq + 2*np.mean(F_pts)*sigma)
-
-	count += 1
-	print count
+		# add back in quantities
+		F_vals[m] = F
+		M_vals[m] = M
 
 
-fig, ax = plt.subplots(1,1)
-ax.errorbar(T_range, np.array(SpecificHeat), yerr=np.array(SpecificHeatErr), fmt='o')
-plt.show()
-'''
+	# compute specific heat and magnetization from samples
+	SpecificHeat[count] = np.mean(F_vals*F_vals) - np.mean(F_vals)*np.mean(F_vals)
+	Magnetization[count] = np.mean(M_vals)
+
+	count += 1 # increment count
+	print_progress(count, number_temperature) # update progress bar
 
 
 
+# write the specific heat and magnetization to files for later fitting
+target1 = open('ising_SpecificHeat.txt', 'a')
+target1.truncate()
+for m in range(number_temperature):
+	target1.write(str(T_range[m])+','+str(SpecificHeat[m]))
+	target1.write('\n')
+target1.close()
 
-
-
-
-
-
-
-
-
-
-
-
+target2 = open('ising_Magnetization.txt', 'a')
+target2.truncate()
+for m in range(number_temperature):
+	target2.write(str(T_range[m])+','+str(Magnetization[m]))
+	target2.write('\n')
+target2.close()
 
