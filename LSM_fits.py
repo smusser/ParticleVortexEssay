@@ -25,13 +25,13 @@ for i in range(1000):
 
 # now sort the values appropriately
 T, SpecificHeat = (list(t) for t in zip(*sorted(zip(T, SpecificHeat))))
-T = np.array(T)
+T = 1.0/np.array(T)
 SpecificHeat = np.array(SpecificHeat)
 
 ### NOW BIN THE DATA TO GET GOOD ERRORBARS ###################################
 
-bins = np.linspace(0.45, 0.8, 20)
-T_plots = np.linspace(0.45, 0.8, 100)
+bins = np.linspace(1.25, 1.8, 20)
+T_plots = np.linspace(1.25, 1.8, 100)
 digitized = np.digitize(T, bins)
 
 bin_means = [SpecificHeat[digitized == i].mean() for i in range(1, len(bins))]
@@ -45,7 +45,7 @@ def guess(T, A, Tc, D, B):
 
 
 # fit using scipy's built in function
-popt, pcov = curve_fit(guess, bins[1:], bin_means, sigma=bin_err, p0=[100.0, 0.65, 1.0, 2.0])
+popt, pcov = curve_fit(guess, bins[1:], bin_means, sigma=bin_err, p0=[100.0, 1.5, 1.0, 2.0])
 perr = np.sqrt(np.diag(pcov))
 
 
@@ -66,6 +66,8 @@ plt.rc('font', family='serif')
 ax.set_title('Specific heat vs. temperature for $5\\times 5\\times 5$ LSM')
 ax.set_ylabel('Specific Heat, $C_V$ ($J/k_B^2$)')
 ax.set_xlabel('Temperature, $T$ ($J/k_B$)')
+ax.set_xlim([1.1, 2.4])
+ax.set_ylim([0, 900])
 
 ax.plot(T, SpecificHeat, 'k.', label='Data')
 ax.errorbar(bins[1:], bin_means, yerr=bin_err, fmt='o', color='r', label='Data in Fit')
@@ -78,12 +80,12 @@ textfit = '$C_V(T) = B -A\ln\left|t \\right| -\\frac{1}{2}DA\mathrm{sgn}\left(t\
 	'$A = %.0f \pm %.0f \ J/k_B^2 $ \n' \
 	'$B = %.0f \pm %.0f \ J/k_B^2$ \n' \
 	'$D = %.1f \pm %.1f$ \n' \
-	'$T_c = %.3f \pm %.3f \ J/k_B$' \
-	% (np.round(popt[0], -1), np.round(perr[0], -1), np.round(popt[3], -1), np.round(perr[3], -1), popt[2], perr[2], popt[1], perr[1])
-ax.text(0.03, .92, textfit, transform=ax.transAxes, fontsize=11,
-verticalalignment='top')
+	'$T_c = %.2f \pm %.2f \ J/k_B$' \
+	% (np.round(popt[0], -1), np.round(perr[0], -1), np.round(popt[3], -1), np.round(perr[3], -1), popt[2], perr[2], np.round(popt[1],2), np.round(perr[1],2))
+ax.text(0.97, .97, textfit, transform=ax.transAxes, fontsize=11,
+verticalalignment='top', horizontalalignment='right')
 
-plt.legend(loc='upper right')
+plt.legend(loc='upper left')
 
 plt.savefig('Alpha_fit_LSM.png', dpi=400)
 plt.show()
