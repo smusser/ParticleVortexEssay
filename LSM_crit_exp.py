@@ -36,13 +36,13 @@ def print_progress(iteration, total, prefix='', suffix='', decimals=1, bar_lengt
 
 #### WE WILL FIRST MAKE SURE TO GET THE RIGHT DEFINITIONS ####
 
-nt = 2**5       # number of temperature points
-T_array  = np.random.normal(0.60, 0.2, nt) # cluster points possible Tc
-T_array = T_array[(T_array > 0.3) & (T_array < 0.9)]
-nt = np.size(T_array)
+nt = 2**10       # number of temperature points
+beta_array  = np.random.normal(1.6, 0.4, nt) # cluster points possible Tc
+beta_array = beta_array[(beta_array > 0.01) & (beta_array < 2.5)]
+nt = np.size(beta_array)
 
-system_size = 5            # this is the number of points on the cubic lattice
-eqSteps = 2000      # number of MC sweeps for equilibration
+system_size = 4            # this is the number of points on the cubic lattice
+eqSteps = 5000      # number of MC sweeps for equilibration
 mcSteps = 5000       # number of MC sweeps for calculation
 theta_n = 100         # discretization of theta
 lattice_n = 3		# only -1,0,+1 because other values energetically disfavored
@@ -159,14 +159,20 @@ def mcmove(system_size, theta, n1, n2, n3, e2, beta_prime):
 ### HERE IS WHERE WE COMPUTE THE SPECIFIC HEAT AT EACH GIVEN TEMPERATURE VALUE ####
 
 SpecificHeat = np.zeros(nt)
+Energy = np.zeros(nt)
+Betap = np.zeros(nt)
+Order = np.zeros(nt)
 
 
-print_progress(0, len(T_array)-1)
-for m in range(len(T_array)):
-	print_progress(m, len(T_array)-1)
+print_progress(0, len(beta_array)-1)
+for m in range(len(beta_array)):
+	print_progress(m, len(beta_array)-1)
 
-	T = T_array[m]
+	beta_prime = beta_array[m]
+
 	GT = np.zeros(mcSteps)
+	BetapT = np.zeros(mcSteps)
+	OrderT = np.zeros(mcSteps, dtype=np.complex128)
 
 
 	# INITIALIZE SOME RANDOM VALUES FOR OUR PARAMETERS
@@ -176,23 +182,40 @@ for m in range(len(T_array)):
 	nvals_3 = np.random.randint(lattice_n, size=(system_size, system_size, system_size)) - lattice_n/2
     
 
-	real_eq_time = int(eqSteps**(1.33-abs(T-0.60)))
-	for i in range(real_eq_time):         # equilibrate
-		theta_vals, nvals_1, nvals_2, nvals_3 = mcmove(system_size, theta_vals, nvals_1, nvals_2, nvals_3, 5.0, 1/T)  # Monte Carlo moves
+	#real_eq_time = int(eqSteps**(1.33-abs(T-0.66)))
+	for i in range(eqSteps):         # equilibrate
+		theta_vals, nvals_1, nvals_2, nvals_3 = mcmove(system_size, theta_vals, nvals_1, nvals_2, nvals_3, 5.0, beta_prime)  # Monte Carlo moves
 
 	for i in range(mcSteps):
-		theta_vals, nvals_1, nvals_2, nvals_3 = mcmove(system_size, theta_vals, nvals_1, nvals_2, nvals_3, 5.0, 1/T)           
+		theta_vals, nvals_1, nvals_2, nvals_3 = mcmove(system_size, theta_vals, nvals_1, nvals_2, nvals_3, 5.0, beta_prime)           
 
-		GT[i] = G(system_size, theta_vals, nvals_1, nvals_2, nvals_3, 5.0, 1/T)
+		GT[i] = G(system_size, theta_vals, nvals_1, nvals_2, nvals_3, 5.0, beta_prime)
+		BetapT[i] = 0.5*beta_prime*np.sum(lattice_curl_mag(system_size, nvals_1, nvals_2, nvals_3))
+		OrderT[i] = np.mean(np.exp(1j*theta_vals), dtype=np.complex128)
 
 
 	SpecificHeat[m] = np.mean(GT*GT) - np.mean(GT)*np.mean(GT)
+	Energy[m] = np.mean(GT)
+	Betap[m] = np.mean(BetapT)
+	Order[m] = np.sqrt(np.real( np.mean(OrderT, dtype=np.complex128)*np.conjugate(np.mean(OrderT, dtype=np.complex128)) ))
 
 
-# write the specific heat and magnetization to files for later fitting
-target1 = open('LSM_SpecificHeat.txt', 'a')
-target1.truncate()
-for m in range(len(T_array)):
-	target1.write(str(T_array[m])+','+str(SpecificHeat[m]))
+	target1 = open('LSM_SpecificHeat.txt', 'a')
+	target1.write(str(1/beta_prime)+','+str(SpecificHeat[m]))
 	target1.write('\n')
-target1.close()
+	target1.close()
+
+	target4 = open('LSM_Energy.txt', 'a')
+	target4.write(str(1/beta_prime)+','+str(Energy[m]))
+	target4.write('\n')
+	target4.close()
+
+	target5 = open('LSM_Betap.txt', 'a')
+	target5.write(str(1/beta_prime)+','+str(Betap[m]))
+	target5.write('\n')
+	target5.close()
+
+	target8 = open('LSM_Order.txt', 'a')
+	target8.write(str(1/beta_prime)+','+str(Order[m]))
+	target8.write('\n')
+	target8.close()
